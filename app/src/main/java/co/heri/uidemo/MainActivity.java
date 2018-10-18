@@ -37,6 +37,7 @@ import io.nlopez.smartlocation.SmartLocation;
 import io.nlopez.smartlocation.location.config.LocationAccuracy;
 import io.nlopez.smartlocation.location.config.LocationParams;
 import io.nlopez.smartlocation.location.providers.LocationGooglePlayServicesProvider;
+import utils.BearingProvider;
 
 
 public class MainActivity extends FragmentActivity implements SensorEventListener, OnMapReadyCallback, OnLocationUpdatedListener {
@@ -50,7 +51,20 @@ public class MainActivity extends FragmentActivity implements SensorEventListene
     private boolean deviceStationary = true;
 
 
+
     TextView myLocationTXT;
+    private long previousTimestamp = 0;
+    private Sensor accelerometer;
+    private Sensor magnetometer;
+    private boolean lastAccelerometerSet = false;
+    private float[] lastAccelerometer = new float[3];
+    private float[] lastMagnetometer = new float[3];
+    private boolean lastMagnetometerSet = false;
+    private float[] orientation = new float[3];
+    private float[] r = new float[9];
+
+
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -67,16 +81,18 @@ public class MainActivity extends FragmentActivity implements SensorEventListene
         mFusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
         myLocationTXT = findViewById(R.id.myLocationTXT);
 
-        mSensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
 
 
     }
+
+
+
 
     @Override
     public void onMapReady(GoogleMap googleMap) {
         mMap = googleMap;
 
-        mMap.setMapStyle(MapStyleOptions.loadRawResourceStyle(MainActivity.this, R.raw.mapstyle));
+        mMap.setMapStyle(MapStyleOptions.loadRawResourceStyle(MainActivity.this, R.raw.map));
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
@@ -160,40 +176,56 @@ private boolean isMarkerRotating = false;
     }
 
 
+    private boolean isMarkerMoving = false;
+
     public void animateMarker(final Marker marker, final LatLng toPosition, final boolean hideMarker) {
-        final Handler handler = new Handler();
-        final long start = SystemClock.uptimeMillis();
-        Projection proj = mMap.getProjection();
-        Point startPoint = proj.toScreenLocation(marker.getPosition());
-        final LatLng startLatLng = proj.fromScreenLocation(startPoint);
-        final long duration = 5000;
 
-        final Interpolator interpolator = new LinearInterpolator();
+        //stopMonitoring();
 
-        handler.post(new Runnable() {
-            @Override
-            public void run() {
-                long elapsed = SystemClock.uptimeMillis() - start;
-                float t = interpolator.getInterpolation((float) elapsed
-                        / duration);
-                double lng = t * toPosition.longitude + (1 - t)
-                        * startLatLng.longitude;
-                double lat = t * toPosition.latitude + (1 - t)
-                        * startLatLng.latitude;
-                marker.setPosition(new LatLng(lat, lng));
+        if(!isMarkerMoving){
 
-                if (t < 1.0) {
-                    // Post again 16ms later.
-                    handler.postDelayed(this, 16);
-                } else {
-                    if (hideMarker) {
-                        marker.setVisible(false);
+
+            final Handler handler = new Handler();
+            final long start = SystemClock.uptimeMillis();
+            Projection proj = mMap.getProjection();
+            Point startPoint = proj.toScreenLocation(marker.getPosition());
+            final LatLng startLatLng = proj.fromScreenLocation(startPoint);
+            final long duration = 5000;
+
+            final Interpolator interpolator = new LinearInterpolator();
+
+            handler.post(new Runnable() {
+                @Override
+                public void run() {
+
+                    isMarkerMoving = true;
+
+                    long elapsed = SystemClock.uptimeMillis() - start;
+                    float t = interpolator.getInterpolation((float) elapsed
+                            / duration);
+                    double lng = t * toPosition.longitude + (1 - t)
+                            * startLatLng.longitude;
+                    double lat = t * toPosition.latitude + (1 - t)
+                            * startLatLng.latitude;
+                    marker.setPosition(new LatLng(lat, lng));
+
+                    if (t < 1.0) {
+                        // Post again 16ms later.
+                        handler.postDelayed(this, 16);
                     } else {
-                        marker.setVisible(true);
+                        if (hideMarker) {
+                            marker.setVisible(false);
+                        } else {
+                            marker.setVisible(true);
+                        }
+
+                        isMarkerMoving = false;
                     }
+
+
                 }
-            }
-        });
+            });
+        }
     }
 
 
@@ -280,6 +312,7 @@ private boolean isMarkerRotating = false;
     @Override
     public void onDestroy() {
         super.onDestroy();
+        stopMonitoring();
         stopLocationUpdate();
     }
 
@@ -287,9 +320,7 @@ private boolean isMarkerRotating = false;
     protected void onResume() {
         super.onResume();
 
-        mSensorManager.registerListener(this, mSensorManager.getDefaultSensor(Sensor.TYPE_ORIENTATION),
-                SensorManager.SENSOR_DELAY_UI);
-
+        startMonitoring();
         startLocationUpdate();
 
     }
@@ -298,7 +329,7 @@ private boolean isMarkerRotating = false;
     protected void onPause() {
         super.onPause();
         // to stop the listener and save battery
-        mSensorManager.unregisterListener(this);
+        stopMonitoring();
         stopLocationUpdate();
 
     }
@@ -306,18 +337,70 @@ private boolean isMarkerRotating = false;
     // device sensor manager
     private SensorManager mSensorManager;
     @Override
-    public void onSensorChanged(SensorEvent event) {
-        // get the angle around the z-axis rotated
-        double degree = Math.round(event.values[0]);
+    public void onSensorChanged(SensorEvent sensorEvent) {
 
-        if(Math.abs(currentPhoneOrientation - degree) >= 10){
-            currentPhoneOrientation = degree;
-            //rotateMarker(driverMarker, (float) degree);
+
+
+        if (sensorEvent.sensor == this.accelerometer) {
+            System.arraycopy(sensorEvent.values, 0, this.lastAccelerometer, 0, sensorEvent.values.length);
+            this.lastAccelerometerSet = true;
+        } else if (sensorEvent.sensor == this.magnetometer) {
+            System.arraycopy(sensorEvent.values, 0, this.lastMagnetometer, 0, sensorEvent.values.length);
+            this.lastMagnetometerSet = true;
         }
 
+        if (this.lastAccelerometerSet && this.lastMagnetometerSet) {
+            SensorManager.getRotationMatrix((float[])this.r, (float[])null, (float[])this.lastAccelerometer, (float[])this.lastMagnetometer);
+            SensorManager.getOrientation((float[])this.r, (float[])this.orientation);
 
-
+            // get the angle around the z-axis rotated
+            double degree = (Math.toDegrees(this.orientation[0]) + 360.0) % 360.0;
+            long l2 = SystemClock.uptimeMillis();
+            if (l2 - this.previousTimestamp > 1000) {
+                if (Math.abs(degree - this.currentPhoneOrientation) > 5.0) {
+                    this.currentPhoneOrientation = degree;
+                }
+                this.previousTimestamp = l2;
+                if(driverMarker != null) {
+                    if(isMarkerMoving){
+                        return;
+                    }
+                    rotateMarker(driverMarker, (float) degree);
+                }
+            }
+        }
     }
+
+    private void startMonitoring(){
+
+        mSensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
+        {
+            if(mSensorManager != null){
+                this.accelerometer = this.mSensorManager.getDefaultSensor(1);
+                this.magnetometer = this.mSensorManager.getDefaultSensor(2);
+                if(this.accelerometer != null || this.magnetometer != null){
+                    mSensorManager.registerListener(this, mSensorManager.getDefaultSensor(1), 3);
+                    mSensorManager.registerListener(this, mSensorManager.getDefaultSensor(2), 3);
+                }
+            }
+
+        }
+    }
+
+    private void stopMonitoring() {
+        {
+            Sensor sensor;
+            SensorManager sensorManager = this.mSensorManager;
+            if (sensorManager != null && (sensor = this.accelerometer) != null && this.magnetometer != null) {
+                sensorManager.unregisterListener(this, sensor);
+                this.mSensorManager.unregisterListener(this, this.magnetometer);
+            }
+        }
+        this.mSensorManager = null;
+        this.accelerometer = null;
+        this.magnetometer = null;
+    }
+
 
     @Override
     public void onAccuracyChanged(Sensor sensor, int accuracy) {
@@ -326,7 +409,6 @@ private boolean isMarkerRotating = false;
 
     @Override
     public void onLocationUpdated(Location myLocation) {
-
 
         LatLng myLatLng = new LatLng(myLocation.getLatitude(), myLocation.getLongitude());
 
@@ -353,9 +435,12 @@ private boolean isMarkerRotating = false;
 
             if(distance < 1.378f){
                 deviceStationary = true;
-                rotateMarker(driverMarker, (float) currentPhoneOrientation);
+                if(isMarkerMoving){
+                    return;
+                }
+                //rotateMarker(driverMarker, (float) currentPhoneOrientation);
                 driverMarker.setPosition(myLatLng);
-                //return;
+                return;
             }else{
                 myRotation = (float) bearingBetweenLocations(driverMarker.getPosition(), myLatLng);
                 rotateMarker(driverMarker, myRotation);

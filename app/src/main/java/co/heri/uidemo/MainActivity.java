@@ -37,7 +37,7 @@ import io.nlopez.smartlocation.SmartLocation;
 import io.nlopez.smartlocation.location.config.LocationAccuracy;
 import io.nlopez.smartlocation.location.config.LocationParams;
 import io.nlopez.smartlocation.location.providers.LocationGooglePlayServicesProvider;
-import utils.BearingProvider;
+
 
 
 public class MainActivity extends FragmentActivity implements SensorEventListener, OnMapReadyCallback, OnLocationUpdatedListener {
@@ -47,7 +47,7 @@ public class MainActivity extends FragmentActivity implements SensorEventListene
 
     private FusedLocationProviderClient mFusedLocationClient;
 
-    private double currentPhoneOrientation = 0.0;
+    private double currentPhoneOrientation = -100.0;
     private boolean deviceStationary = true;
 
 
@@ -247,14 +247,13 @@ private boolean isMarkerRotating = false;
     }
 
 
-    private LocationGooglePlayServicesProvider provider;
+    private LocationGooglePlayServicesProvider provider = new LocationGooglePlayServicesProvider();
     private void startLocationUpdate() {
 
-        provider = new LocationGooglePlayServicesProvider();
         provider.setCheckLocationSettings(true);
 
-        long mLocTrackingInterval = 400 * 1; // 0.4 sec
-        float trackingDistance = 0;
+//        long mLocTrackingInterval = 400 * 2; // 0.4 sec
+//        float trackingDistance = 0;
         LocationAccuracy trackingAccuracy = LocationAccuracy.HIGH;
 
         LocationParams.Builder locationParams = new LocationParams.Builder()
@@ -284,14 +283,14 @@ private boolean isMarkerRotating = false;
                     }
 
                     Toast.makeText(MainActivity.this,
-                            String.format("Activity %s with %d%% confidence",
+                            String.format(getString(R.string.activity_detect),
                                     getNameFromType(detectedActivity),
                                     detectedActivity.getConfidence()), Toast.LENGTH_SHORT).show();
 
                 } else {
                     deviceStationary = true;
 
-                    Toast.makeText(MainActivity.this, "Null activity", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(MainActivity.this, R.string.no_activity_dectect, Toast.LENGTH_SHORT).show();
                 }
             }
         });
@@ -350,8 +349,8 @@ private boolean isMarkerRotating = false;
         }
 
         if (this.lastAccelerometerSet && this.lastMagnetometerSet) {
-            SensorManager.getRotationMatrix((float[])this.r, (float[])null, (float[])this.lastAccelerometer, (float[])this.lastMagnetometer);
-            SensorManager.getOrientation((float[])this.r, (float[])this.orientation);
+            SensorManager.getRotationMatrix(this.r, null, this.lastAccelerometer, this.lastMagnetometer);
+            SensorManager.getOrientation(this.r, this.orientation);
 
             // get the angle around the z-axis rotated
             double degree = (Math.toDegrees(this.orientation[0]) + 360.0) % 360.0;
@@ -414,7 +413,7 @@ private boolean isMarkerRotating = false;
 
         if (driverMarker == null){
             driverMarker = mMap.addMarker(new MarkerOptions()
-                    .title("It's Me!")
+                    .title(getString(R.string.my_location_title))
                     .position(myLatLng)
                     .flat(true)
                     .anchor(0.5f, 0.5f)
@@ -452,9 +451,9 @@ private boolean isMarkerRotating = false;
 
 
 
-        Toast.makeText(MainActivity.this, String.format("Location Chnaged with distance: %s", String.valueOf(distance)), Toast.LENGTH_SHORT).show();
+        Toast.makeText(MainActivity.this, String.format(getString(R.string.on_location_change), String.valueOf(distance)), Toast.LENGTH_SHORT).show();
         //mMap.animateCamera(CameraUpdateFactory.newLatLng(myLatLng));
-        myLocationTXT.setText(String.format("Lat: %s, Lng: %s Bearing: %s", myLocation.getLatitude(), myLocation.getLongitude(), myRotation));
+        myLocationTXT.setText(String.format(getString(R.string.my_location_stats), myLocation.getLatitude(), myLocation.getLongitude(), myRotation));
 
     }
 

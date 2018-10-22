@@ -453,7 +453,7 @@ private boolean isMarkerRotating = false;
 
         Toast.makeText(MainActivity.this, String.format(getString(R.string.on_location_change), String.valueOf(distance)), Toast.LENGTH_SHORT).show();
         //mMap.animateCamera(CameraUpdateFactory.newLatLng(myLatLng));
-        myLocationTXT.setText(String.format(getString(R.string.my_location_stats), myLocation.getLatitude(), myLocation.getLongitude(), myRotation));
+        myLocationTXT.setText(String.format(getString(R.string.my_location_stats), String.valueOf(myLocation.getLatitude()), String.valueOf(myLocation.getLongitude()), String.valueOf(myRotation)));
 
     }
 

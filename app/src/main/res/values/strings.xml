@@ -4,5 +4,5 @@
     <string name="no_activity_dectect">Null activity</string>
     <string name="my_location_title">It\'s Me!</string>
     <string name="on_location_change">Location change with distance: %s</string>
-    <string name="my_location_stats">Lat: %d, Lng: %d Bearing: %d</string>
+    <string name="my_location_stats">Lat: %s, Lng: %s Bearing: %s</string>
 </resources>
